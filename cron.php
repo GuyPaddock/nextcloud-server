@@ -17,6 +17,7 @@
  * @author Steffen Lindner <mail@steffen-lindner.de>
  * @author Thomas Müller <thomas.mueller@tmit.eu>
  * @author Vincent Petry <pvince81@owncloud.com>
+ * @author Guy Elsmore-Paddock <guy@inveniem.com>
  *
  * @license AGPL-3.0
  *
@@ -35,6 +36,36 @@
  */
 
 require_once __DIR__ . '/lib/versioncheck.php';
+
+/**
+ * Ensure that the configuration file is owned by the same user as the account
+ * under which the web server runs.
+ */
+function checkConfigOwner() {
+	if (!function_exists('posix_getuid')) {
+		echo "The posix extensions are required - see " .
+				"http://php.net/manual/en/book.posix.php" . PHP_EOL;
+
+		exit(1);
+	}
+
+	$user = posix_getpwuid(posix_getuid());
+	$configUser = posix_getpwuid(fileowner(OC::$configDir . 'config.php'));
+
+	if ($user['name'] !== $configUser['name']) {
+		echo "Console has to be executed with the same user as the web server ".
+				"is operated" . PHP_EOL;
+		echo PHP_EOL;
+		echo "Current user: " . $user['name'] . PHP_EOL;
+		echo "Web server user: " . $configUser['name'] . PHP_EOL;
+		echo PHP_EOL;
+		echo "Advanced users absolutely sure permissions are correct may " .
+				"override this check by setting `cli.checkconfigowner` to " .
+				"`FALSE` in config.php." . PHP_EOL;
+
+		exit(1);
+	}
+}
 
 try {
 
@@ -88,17 +119,8 @@ try {
 		}
 
 		// the cron job must be executed with the right user
-		if (!function_exists('posix_getuid')) {
-			echo "The posix extensions are required - see http://php.net/manual/en/book.posix.php" . PHP_EOL;
-			exit(1);
-		}
-		$user = posix_getpwuid(posix_getuid());
-		$configUser = posix_getpwuid(fileowner(OC::$configDir . 'config.php'));
-		if ($user['name'] !== $configUser['name']) {
-			echo "Console has to be executed with the same user as the web server is operated" . PHP_EOL;
-			echo "Current user: " . $user['name'] . PHP_EOL;
-			echo "Web server user: " . $configUser['name'] . PHP_EOL;
-			exit(1);
+		if ($config->getSystemValue('cli.checkconfigowner', TRUE)) {
+			checkConfigOwner();
 		}
 
 		// We call Nextcloud from the CLI (aka cron)
