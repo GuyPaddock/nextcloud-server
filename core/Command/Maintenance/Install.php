@@ -30,6 +30,7 @@
 namespace OC\Core\Command\Maintenance;
 
 use InvalidArgumentException;
+use OC\Console\ConfigOwnership\ConfigOwnershipController;
 use OC\Installer;
 use OC\Setup;
 use OC\SystemConfig;
@@ -98,6 +99,11 @@ class Install extends Command {
 
 		// validate user input
 		$options = $this->validateInput($input, $output, array_keys($sysInfo['databases']));
+
+		ConfigOwnershipController::persistSettings(
+			$input,
+			$this->config
+		);
 
 		// perform installation
 		$errors = $setupHelper->install($options);

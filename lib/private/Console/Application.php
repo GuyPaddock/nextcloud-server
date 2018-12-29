@@ -11,6 +11,7 @@
  * @author Robin Appelman <robin@icewind.nl>
  * @author Thomas Müller <thomas.mueller@tmit.eu>
  * @author Victor Dubiniuk <dubiniuk@owncloud.com>
+ * @author Guy Elsmore-Paddock <guy@inveniem.com>
  *
  * @license AGPL-3.0
  *
@@ -29,6 +30,8 @@
  */
 namespace OC\Console;
 
+use OC\Console\ConfigOwnership\ConfigOwnershipController;
+use OC\Console\ConfigOwnership\IConfigOwnerEnforcer;
 use OC\MemoryInfo;
 use OC\NeedsUpdateException;
 use OC_App;
@@ -45,6 +48,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 class Application {
+	/** @var SymfonyApplication */
+	private $application;
 	/** @var IConfig */
 	private $config;
 	/** @var EventDispatcherInterface */
@@ -55,6 +60,8 @@ class Application {
 	private $logger;
 	/** @var MemoryInfo */
 	private $memoryInfo;
+	/** @var IConfigOwnerEnforcer */
+	private $configOwnerEnforcer;
 
 	/**
 	 * @param IConfig $config
@@ -86,26 +93,7 @@ class Application {
 		InputInterface $input,
 		ConsoleOutputInterface $output
 	) {
-		// $application is required to be defined in the register_command scripts
-		$application = $this->application;
-		$inputDefinition = $application->getDefinition();
-		$inputDefinition->addOption(
-			new InputOption(
-				'no-warnings', 
-				null, 
-				InputOption::VALUE_NONE, 
-				'Skip global warnings, show command output only', 
-				null
-			)
-		);
-		try {
-			$input->bind($inputDefinition);
-		} catch (\RuntimeException $e) {
-			//expected if there are extra options
-		}
-		if ($input->getOption('no-warnings')) {
-			$output->setVerbosity(OutputInterface::VERBOSITY_QUIET);
-		}
+		$this->loadGlobalOptions($input, $output);
 
 		if ($this->memoryInfo->isMemoryLimitSufficient() === false) {
 			$output->getErrorOutput()->writeln(
@@ -115,6 +103,8 @@ class Application {
 		}
 
 		try {
+			// $application must be in scope for register_command scripts
+			$application = $this->application;
 			require_once __DIR__ . '/../../../core/register_command.php';
 			if ($this->config->getSystemValue('installed', false)) {
 				if (\OCP\Util::needUpgrade()) {
@@ -206,10 +196,13 @@ class Application {
 	 * @throws \Exception
 	 */
 	public function run(InputInterface $input = null, OutputInterface $output = null) {
+		$this->configOwnerEnforcer->enforceFileOwnership();
+
 		$this->dispatcher->dispatch(ConsoleEvent::EVENT_RUN, new ConsoleEvent(
 			ConsoleEvent::EVENT_RUN,
 			$this->request->server['argv']
 		));
+
 		return $this->application->run($input, $output);
 	}
 
@@ -227,5 +220,52 @@ class Application {
 
 			$this->application->add($c);
 		}
+	}
+
+	/**
+	 * Initialize and parse the CLI options that are suitabe for being passed
+	 * with any command.
+	 *
+	 * @param InputInterface $input
+	 * 	The Symfony input interface from which options should be obtained (this
+	 *	is typically an abstraction of CLI).
+	 * @param ConsoleOutputInterface $output
+	 *	The Symfony console output interface, to which errors about options
+	 * 	should be written.
+	 */
+	protected function loadGlobalOptions(InputInterface $input,
+										  ConsoleOutputInterface $output) {
+		$application = $this->application;
+
+		$inputDefinition = $application->getDefinition();
+		$inputDefinition->addOption(
+			new InputOption(
+				'no-warnings',
+				null,
+				InputOption::VALUE_NONE,
+				'Skip global warnings, show command output only',
+				null
+			)
+		);
+
+		ConfigOwnershipController::registerOptions($inputDefinition);
+
+		try {
+			$input->bind($inputDefinition);
+		} catch (\RuntimeException $e) {
+			// expected if there are non-global options being passed to the
+			// command
+		}
+
+		if ($input->getOption('no-warnings')) {
+			$output->setVerbosity(OutputInterface::VERBOSITY_QUIET);
+		}
+
+		$this->configOwnerEnforcer =
+			ConfigOwnershipController::buildEnforcer(
+				$input,
+				$this->config,
+				$output
+			);
 	}
 }

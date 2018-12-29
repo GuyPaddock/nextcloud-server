@@ -35,36 +35,26 @@
  *
  */
 
+use OC\Console\ConfigOwnership\ConfigOwnershipController;
+use OCP\IConfig;
+use Symfony\Component\Console\Output\ConsoleOutput;
+
 require_once __DIR__ . '/lib/versioncheck.php';
 
 /**
  * Ensure that the configuration file is owned by the same user as the account
  * under which the web server runs.
+ *
+ * @param IConfig $config
+ * 	The application configuration.
  */
-function checkConfigOwner() {
-	if (!function_exists('posix_getuid')) {
-		echo "The posix extensions are required - see " .
-				"http://php.net/manual/en/book.posix.php" . PHP_EOL;
+function checkConfigOwner(IConfig $config) {
+	$output = new ConsoleOutput();
 
-		exit(1);
-	}
+	$configOwnerEnforcer =
+		ConfigOwnershipController::buildEnforcer(NULL, $config, $output);
 
-	$user = posix_getpwuid(posix_getuid());
-	$configUser = posix_getpwuid(fileowner(OC::$configDir . 'config.php'));
-
-	if ($user['name'] !== $configUser['name']) {
-		echo "Console has to be executed with the same user as the web server ".
-				"is operated" . PHP_EOL;
-		echo PHP_EOL;
-		echo "Current user: " . $user['name'] . PHP_EOL;
-		echo "Web server user: " . $configUser['name'] . PHP_EOL;
-		echo PHP_EOL;
-		echo "Advanced users absolutely sure permissions are correct may " .
-				"override this check by setting `cli.checkconfigowner` to " .
-				"`FALSE` in config.php." . PHP_EOL;
-
-		exit(1);
-	}
+	$configOwnerEnforcer->enforceFileOwnership();
 }
 
 try {
@@ -119,9 +109,7 @@ try {
 		}
 
 		// the cron job must be executed with the right user
-		if ($config->getSystemValue('cli.checkconfigowner', TRUE)) {
-			checkConfigOwner();
-		}
+		checkConfigOwner($config);
 
 		// We call Nextcloud from the CLI (aka cron)
 		if ($appMode !== 'cron') {
