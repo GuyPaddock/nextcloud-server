@@ -65,7 +65,7 @@ class DefaultEnforcer implements IConfigOwnerEnforcer {
 	 * @return string
 	 * 	The path to the configuration file.
 	 */
-	private function getConfigPath() {
+	protected function getConfigPath() {
 		return OC::$configDir . 'config.php';
 	}
 
@@ -75,7 +75,7 @@ class DefaultEnforcer implements IConfigOwnerEnforcer {
 	 * 	running; or the numeric ID for the user account, if the user's info is
 	 *	not exposed in the system <code>/etc/passwd</code> file.
 	 */
-	private function getCurrentUserName() {
+	protected function getCurrentUserName() {
 		return FileOwnerVerifier::userIdToName(posix_getuid());
 	}
 

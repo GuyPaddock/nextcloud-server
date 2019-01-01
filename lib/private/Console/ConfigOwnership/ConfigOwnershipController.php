@@ -143,8 +143,8 @@ class ConfigOwnershipController {
 	 * 	suppresses file ownership checks.
 	 */
 	private static function hasInputSuppressedChecks(
-												InputInterface $input = NULL) {
-		return ($input !== NULL)
+												InputInterface $input = null) {
+		return ($input !== null)
 			&& $input->getOption(self::CLI_CHECK_CONFIG_OWNER_DISABLE_OPTION);
 	}
 
@@ -159,12 +159,13 @@ class ConfigOwnershipController {
 	 * 	<code>true</code> only if a config interface has been provided that has
 	 * 	the option for config ownership checking set to <code>false</code>.
 	 */
-	private static function hasConfigSuppressedChecks(IConfig $config = NULL) {
-		if (isset($config)) {
+	private static function hasConfigSuppressedChecks(IConfig $config = null) {
+		if ($config !== null) {
 			$configValue =
 				$config->getSystemValue(
 					self::CONFIG_CHECK_CONFIG_OWNER_OPTION,
-					true);
+					true
+				);
 
 			return ($configValue === false);
 		} else {
